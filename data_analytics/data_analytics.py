@@ -38,5 +38,9 @@ print(res)
 
 # Part 3.3
 
-join_result = pd.merge(population_data_json_df.loc[: , ['Population', 'ID Year']], pr_data_content_df.loc[(pr_data_content_df['period'] == 'Q01') & (pr_data_content_df['series_id'] == 'PRS30006032'), ['series_id', 'year', 'period', 'value']], left_on='ID Year', right_on='year').loc[:, ['series_id','year', 'period', 'value', 'Population']]
+join_result = pd.merge(population_data_json_df.loc[:, ['Population', 'ID Year']], pr_data_content_df.loc[
+    (pr_data_content_df['period'] == 'Q01') & (pr_data_content_df['series_id'] == 'PRS30006032'), ['series_id', 'year',
+                                                                                                   'period', 'value']],
+                       left_on='ID Year', right_on='year').loc[:,
+              ['series_id', 'year', 'period', 'value', 'Population']]
 print(join_result)
