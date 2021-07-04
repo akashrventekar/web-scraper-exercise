@@ -9,10 +9,12 @@ import traceback
 
 s3_client = boto3.client('s3')
 files = defaultdict()
+bucket = 'big-data-set'
+files_metadata_file_name = 'files_metadata.json'
 try:
     files_metadata = s3_client.get_object(
-        Bucket='big-data-set',
-        Key='files_metadata'
+        Bucket=bucket,
+        Key=files_metadata_file_name
     )['Body']
 
     files = json.load(files_metadata)
@@ -33,9 +35,9 @@ def get_all_dataset_links(soup):
     for a in results[1:]:
         yield f"https://download.bls.gov{a['href']}"
 
-def files_changed(key, link):
-    file_changed_flag, etag = file_changed(key, link)
-    if file_changed_flag:
+def file_changed(key, link):
+    etag_changed_flag, etag = head_request_check_cache(key, link)
+    if etag_changed_flag:
         s3_put_response = download_content_upload_file_to_s3(key, link)
         files[key] = (
             etag,
@@ -44,7 +46,7 @@ def files_changed(key, link):
         return True
     return False
 
-def file_changed(key, link):
+def head_request_check_cache(key, link):
     external_head_response = requests.head(link)
     # This condition takes care of new data as well as etag being the same. However, breaks readability
     # Also, the If-None-Match header for this server was not working and would always return a 200.
@@ -61,7 +63,7 @@ def download_content_upload_file_to_s3(key, link):
 
     return s3_client.put_object(
         Body=external_get_response.content,
-        Bucket='big-data-set',
+        Bucket=bucket,
         Key=key
     )
 
@@ -75,18 +77,18 @@ def lambda_handler(event, context):
     for link in links:
         logger.debug(f"Downloading {link}")
         key = link.split("/")[-1]
-        files_changed_flag = files_changed(key, link)
+        file_changed_flag = file_changed(key, link)
     # I am using S3 to store the metadata for now and will recreate this everytime a file is uploaded/modified. However, we can use DynamoDB to store this metadata.
     # Also, store this in another place in case of clashing names
     key = "population_data.json"
     link = 'https://datausa.io/api/data?drilldowns=Nation&measures=Population'
-    files_changed_flag_population_data = files_changed(key, link)
+    file_changed_flag_population_data = file_changed(key, link)
 
-    if files_changed_flag or files_changed_flag_population_data:
+    if file_changed_flag or file_changed_flag_population_data:
         put_response = s3_client.put_object(
             Body=json.dumps(files).encode(),
-            Bucket='big-data-set',
-            Key='files_metadata'
+            Bucket=bucket,
+            Key=files_metadata_file_name
         )
         logger.info(f"Recreating metadata file: {put_response}")
 
